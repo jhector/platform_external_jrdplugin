@@ -10,23 +10,27 @@
 
 int read_sysfile(const char *path, const char **out)
 {
-	int fd = open(path, O_RDONLY);
+	int rv, fd = open(path, O_RDONLY);
 	if (fd < 0)
 		return -1;
 
 	off_t size = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 
-	*out = calloc(1, size);
+	*out = calloc(1, size+1);
 	if (!*out)
 		return -2;
 
-	return read(fd, *out, size);
+	if ((rv = read(fd, *out, size)) < 0)
+		return rv;
+
+	close(fd);
+	return rv;
 }
 
 int common_battery_temp(const char **out)
 {
-	if (read_sysfile("/system/etc/wifi/macaddr", out) < 0)
+	if (read_sysfile("/sys/class/power_supply/battery/temp", out) < 0)
 		return PLUGIN_ERROR;
 
 	return PLUGIN_OK;
@@ -34,9 +38,15 @@ int common_battery_temp(const char **out)
 
 int handler(const char *name, const char *value, const char **out, int mode)
 {
-	if (strcmp(name, "JrdSrv:Common:BatteryTemp") == 0 &&
-		mode == PLUGIN_HANDLE_GET) {
-		return common_battery_temp(out);
+	if (mode == PLUGIN_HANDLE_GET) {
+		if (strcmp(name, "JrdSrv:Common:BatteryTemp") == 0) {
+			return common_battery_temp(out);
+		}
+
+		if (strcmp(name, "JrdSrv:StaticTest") == 0) {
+			*out = "Static test";
+			return PLUGIN_OK;
+		}
 	}
 
 	return PLUGIN_OK;
